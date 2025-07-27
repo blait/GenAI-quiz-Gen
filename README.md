@@ -13,52 +13,44 @@ LangGraph와 Amazon Bedrock을 활용한 K-pop 퀴즈 생성기입니다.
 
 ```mermaid
 graph TD
-    A[시작] --> B[orchestrator]
-    B --> C{모든 퀴즈 완료?}
-    C -->|No| D[search_and_generate]
-    C -->|Yes| END[END 신호]
+    Start([시작]) --> Orch[🎯 ORCHESTRATOR<br/>주제 분석 & 5개 퀴즈 유형 생성]
     
-    D --> D1[주제 기반 DuckDuckGo 검색]
-    D1 --> D2[검색 결과 분석]
-    D2 --> D3[LLM으로 퀴즈 생성]
-    D3 --> E{퀴즈 생성 성공?}
+    %% 퀴즈 유형 처리 블록 (1개 유형만 표시, 5개 반복)
+    subgraph QuizType ["📝 퀴즈 유형 처리 (총 5개 유형 순차 반복)"]
+        SG[🔍 SEARCH_AND_GENERATOR<br/>1. DuckDuckGo 검색<br/>2. 데이터 파싱<br/>3. 퀴즈 생성]
+        Val{✅ VALIDATOR<br/>다중 키워드 검색으로<br/>사실 검증}
+        Retry{재시도 횟수<br/>< 3회?}
+        
+        SG --> Val
+        Val --> |INVALID<br/>피드백 제공| Retry
+        Retry --> |Yes| SG
+        Val --> |VALID<br/>검증 성공| Return[ORCHESTRATOR로 복귀]
+        Retry --> |No<br/>최대 재시도 초과| Return
+    end
     
-    E -->|Yes| F[validation_worker]
-    E -->|No| G[재시도 또는 실패]
-    G --> B
+    %% 메인 플로우 연결
+    Orch --> |각 퀴즈 유형 시작| QuizType
+    Return --> |다음 유형 또는 완료| Orch
+    Orch --> |5개 유형 모두 완료시| Display[📊 DISPLAY_WORKER<br/>CSV 파일 생성 및 저장]
     
-    F --> F1[LLM이 3-5개 검증 키워드 생성]
-    F1 --> F2[각 키워드로 DuckDuckGo 검색]
-    F2 --> F3[검색 결과 교차 검증]
-    F3 --> H{검증 통과?}
+    Display --> End([종료])
     
-    H -->|Yes| I[display_worker]
-    H -->|No| J{재시도 횟수 < 3?}
-    J -->|Yes| K[피드백 생성]
-    J -->|No| L[검증 실패]
+    %% 스타일링
+    classDef orchestrator fill:#667eea,stroke:#333,stroke-width:3px,color:#fff
+    classDef search fill:#4299e1,stroke:#333,stroke-width:2px,color:#fff
+    classDef validator fill:#48bb78,stroke:#333,stroke-width:2px,color:#fff
+    classDef display fill:#ed8936,stroke:#333,stroke-width:2px,color:#fff
+    classDef retry fill:#fbd38d,stroke:#333,stroke-width:2px,color:#744210
+    classDef startend fill:#9f7aea,stroke:#333,stroke-width:2px,color:#fff
+    classDef return fill:#e2e8f0,stroke:#4a5568,stroke-width:1px,color:#2d3748
     
-    K --> D
-    I --> I1[퀴즈 포맷팅 및 저장]
-    I1 --> B
-    L --> B
-    
-    END --> M[최종 결과 출력 및 종료]
-    
-    style A fill:#e1f5fe
-    style B fill:#fff9c4
-    style D fill:#f3e5f5
-    style F fill:#fff3e0
-    style I fill:#e8f5e8
-    style END fill:#ffcdd2
-    style M fill:#c8e6c9
-    
-    style D1 fill:#e3f2fd
-    style D2 fill:#e3f2fd
-    style D3 fill:#e3f2fd
-    style F1 fill:#fce4ec
-    style F2 fill:#fce4ec
-    style F3 fill:#fce4ec
-    style I1 fill:#e8f5e8
+    class Orch orchestrator
+    class SG search
+    class Val validator
+    class Display display
+    class Retry retry
+    class Start,End startend
+    class Return return
 ```
 
 ## 시스템 구조
