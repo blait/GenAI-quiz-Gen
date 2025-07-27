@@ -13,15 +13,20 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_aws import ChatBedrock  # For Amazon Bedrock
 from ddgs import DDGS
-from opensearchpy import OpenSearch
-from sentence_transformers import SentenceTransformer
-import numpy as np
 import json
 import csv
 from io import StringIO
 from datetime import datetime
 import time  # 지연 추가
 from botocore.config import Config  # Config 임포트 추가
+
+# OpenSearch 설정 및 함수들 import
+from opensearch_config import (
+    check_duplicate_in_opensearch,
+    save_quiz_to_opensearch,
+    get_opensearch_stats
+)
+from config import DEFAULT_DUPLICATION_THRESHOLD
 
 # LLM setup - Using Amazon Bedrock Claude 3.7 Sonnet with cross-region inference
 retry_config = Config(
@@ -60,6 +65,7 @@ class State(TypedDict):
     all_completed: bool  # All subtasks completed
     retry_feedback: str  # Feedback for retry from validation
     validation_success: bool  # Validation success flag
+    duplication_check_success: bool  # Duplication check success flag
     retry_count: int  # Current retry count for current subtask
 
 # Worker state is no longer needed - using main State for everything
@@ -218,6 +224,89 @@ def search_and_generate(state: State):
     
     return {"current_quiz": quiz if quiz else None}
 
+# OpenSearch Duplication Checker: 중복 퀴즈 검사
+def os_duplication_checker(state: State):
+    print("[dup]OpenSearch 중복 검사 워커 시작...")
+    print(f"[dup]State 키들: {list(state.keys())}")
+    
+    quiz = state.get('current_quiz')
+    
+    if not quiz:
+        print("[dup]검사할 퀴즈가 없습니다")
+        # 재시도 횟수 확인
+        retry_count = state.get('retry_count', 0)
+        if retry_count >= 3:
+            print(f"[dup]최대 재시도 횟수 초과 ({retry_count}번), 다음 퀴즈타입으로 이동")
+            return {"duplication_check_success": True, "retry_count": 0, "retry_feedback": ""}
+        
+        return {"retry_feedback": "퀴즈 생성에 실패했습니다. 다시 시도해주세요.", "retry_count": retry_count + 1, "duplication_check_success": False}
+    
+    print(f"[dup]중복 검사 대상 퀴즈: {quiz.get('Question', '')}")
+    
+    # OpenSearch 중복 검사 수행
+    question_text = quiz.get('Question', '')
+    if not question_text:
+        print("[dup]질문 텍스트가 없어 중복 검사를 건너뜁니다")
+        return {"duplication_check_success": True, "retry_feedback": ""}
+    
+    try:
+        print(f"[dup]OpenSearch에서 중복 퀴즈 검사 중... (임계값: {DEFAULT_DUPLICATION_THRESHOLD})")
+        is_duplicate, duplicates, error = check_duplicate_in_opensearch(question_text, threshold=DEFAULT_DUPLICATION_THRESHOLD)
+        
+        if error:
+            print(f"[dup]OpenSearch 중복 검사 오류: {error}")
+            # 오류 발생 시에도 다음 단계로 진행 (검증은 계속)
+            return {"duplication_check_success": True, "retry_feedback": ""}
+        
+        if is_duplicate:
+            print(f"[dup]🚨 중복 퀴즈 발견! {len(duplicates)}개의 유사한 퀴즈 존재")
+            
+            # 현재 퀴즈 정보 수집
+            current_quiz_info = f"""📝 현재 생성된 퀴즈:
+질문: '{question_text}'
+정답: '{quiz.get('IsCorrect', '')}'
+카테고리: {quiz.get('Category', '')}"""
+            
+            # 중복 퀴즈 정보 출력 및 수집
+            duplicate_info = []
+            for i, dup in enumerate(duplicates[:3], 1):  # 상위 3개만
+                duplicate_info.append(f"{i}. '{dup['question']}' (유사도: {dup['cosine_similarity']:.3f})")
+                print(f"[dup]  유사 퀴즈 {i}: {dup['question']} (유사도: {dup['cosine_similarity']:.3f})")
+            
+            # 재시도 횟수 확인
+            retry_count = state.get('retry_count', 0)
+            if retry_count >= 3:
+                print(f"[dup]최대 재시도 횟수 초과 ({retry_count}번), 중복 퀴즈 처리 - 다음 퀴즈타입으로 이동")
+                return {"duplication_check_success": True, "retry_count": 0, "retry_feedback": ""}
+            
+            # 중복 피드백 생성 (현재 퀴즈 정보 포함)
+            duplicate_feedback = f"""🚨 중복 퀴즈 감지됨! (유사도 임계값: {DEFAULT_DUPLICATION_THRESHOLD})
+
+{current_quiz_info}
+
+🔍 기존 유사 퀴즈들:
+{chr(10).join(duplicate_info)}
+
+💡 해결 방안: 
+- 다른 각도에서 접근하는 완전히 새로운 퀴즈를 만들어주세요
+- 더 구체적인 세부사항이나 다른 측면을 다루는 퀴즈로 변경해주세요
+- 시간대, 상황, 맥락 등을 다르게 하여 차별화된 퀴즈를 생성해주세요"""
+            
+            print(f"[dup]중복 검사 실패 - search_and_generate로 재시도 요청")
+            return {
+                "retry_feedback": duplicate_feedback, 
+                "retry_count": retry_count + 1, 
+                "duplication_check_success": False
+            }
+        else:
+            print("[dup]✅ 중복 검사 통과 - 새로운 퀴즈입니다!")
+            return {"duplication_check_success": True, "retry_feedback": ""}
+            
+    except Exception as e:
+        print(f"[dup]OpenSearch 중복 검사 예외 발생: {e}")
+        # 예외 발생 시에도 다음 단계로 진행
+        return {"duplication_check_success": True, "retry_feedback": ""}
+
 # Validation worker: Validates quiz and routes based on success/failure
 def validation_worker(state: State):
     print("[val]검증 워커 시작: 퀴즈 검증 중...")
@@ -311,7 +400,7 @@ def validation_worker(state: State):
     # Step 4: LLM validation with aggregated search results
     time.sleep(1)
     validate_prompt = ChatPromptTemplate.from_messages([
-        SystemMessage(content="당신은 퀴즈가 틀린 정보로 만들어졌는지 검증하는 점증자입니다. 여러 키워드로 수집된 검색 결과를 종합하여 퀴즈의 정확성을 검증하세요. 다양한 소스에서 일관된 정보가 확인되면 'VALID'를 반환하고, 모순되거나 확인되지 않으면 'INVALID: [구체적인 틀린 이유]'를 반환하세요. 2025-07-25 날짜를 기준으로 교차 확인하세요."),
+        SystemMessage(content="당신은 퀴즈가 틀린 정보로 만들어졌는지 검증하는 검증자입니다. 여러 키워드로 수집된 검색 결과를 종합하여 퀴즈의 정확성을 검증하세요. 다양한 소스에서 일관된 정보가 확인되면 'VALID'를 반환하고, 모순되거나 확인되지 않으면 'INVALID: [구체적인 틀린 이유]'를 반환하세요. 2025-07-25 날짜를 기준으로 교차 확인하세요."),
         HumanMessage(content=f"퀴즈: {json.dumps(quiz, ensure_ascii=False)}\n\n다중 키워드 검색 결과:\n{aggregated_results}")
     ])
     validated = llm.invoke(validate_prompt.format_messages()).content.strip()
@@ -335,14 +424,38 @@ def validation_worker(state: State):
 
 # Display worker: Synthesizes quizzes into CSV
 def display_worker(state: State):
-    print("[dp]표시 워커 시작: CSV 생성 중...")
+    print("[dp]표시 워커 시작: OpenSearch 저장 후 CSV 생성 중...")
     quizzes = state['completed_quizzes']
     
-    # Create CSV
+    print(f"[dp]CSV 생성 완료: 퀴즈 개수 {len(quizzes)}")
+    
+    # ===== 1단계: OpenSearch에 퀴즈 저장 =====
+    print("[dp]1단계: OpenSearch에 퀴즈 저장 중...")
+    opensearch_success_count = 0
+    opensearch_fail_count = 0
+    
+    for i, quiz in enumerate(quizzes, 1):
+        print(f"[dp]OpenSearch 저장 {i}/{len(quizzes)}: {quiz.get('Question', '')[:50]}...")
+        
+        success, doc_id, error = save_quiz_to_opensearch(quiz)
+        
+        if success:
+            opensearch_success_count += 1
+            print(f"[dp]  ✅ 저장 성공 (ID: {doc_id})")
+        else:
+            opensearch_fail_count += 1
+            print(f"[dp]  ❌ 저장 실패: {error}")
+    
+    print(f"[dp]OpenSearch 저장 완료: 성공 {opensearch_success_count}개, 실패 {opensearch_fail_count}개")
+    
+    # ===== 2단계: CSV 생성 =====
+    print("[dp]2단계: CSV 파일 생성 중...")
     output = StringIO()
     writer = csv.DictWriter(output, fieldnames=["QuizID", "Category", "QuestionID", "Type", "Question", "Option", "IsCorrect"])
     writer.writeheader()
+    
     for quiz in quizzes:
+        # CSV 행 생성
         for option in quiz.get('Options', []):
             row = {
                 "QuizID": quiz.get('QuizID', ''),
@@ -356,7 +469,20 @@ def display_worker(state: State):
             writer.writerow(row)
     
     final_csv = output.getvalue()
-    print("[dp]CSV 생성 완료: 퀴즈 개수", len(quizzes))
+    
+    # ===== 3단계: CSV 파일 저장 =====
+    topic = state.get('topic', 'quiz')
+    safe_topic = topic.replace(' ', '_').replace('/', '_').lower()
+    filename = f"{safe_topic}_quiz_output.csv"
+    
+    try:
+        with open(filename, 'w', encoding='utf-8', newline='') as f:
+            f.write(final_csv)
+        print(f"[dp]CSV 파일 저장 완료: {filename}")
+    except Exception as e:
+        print(f"[dp]CSV 파일 저장 실패: {e}")
+    
+    print(f"[dp]표시 워커 완료: OpenSearch {opensearch_success_count}개 저장, CSV 파일 생성")
     return {"final_output": final_csv}
 
 # Routing functions
@@ -384,18 +510,53 @@ def assign_workers(state: State):
     # This function is no longer used in sequential processing
     return []
 
+# Routing functions
+def route_after_orchestrator(state: State):
+    print(f"[route]오케스트레이터 후 라우팅: all_completed={state.get('all_completed', False)}")
+    if state.get('all_completed', False):
+        return "display"
+    else:
+        return "generate"
+
+def route_after_duplication_check(state: State):
+    """중복 검사 후 라우팅"""
+    duplication_success = state.get('duplication_check_success', True)
+    retry_feedback = state.get('retry_feedback', '')
+    
+    print(f"[route]중복 검사 후 라우팅: duplication_success={duplication_success}, retry_feedback='{retry_feedback[:50]}...'")
+    
+    if duplication_success:
+        return "validation"  # 중복 검사 통과 → 기존 검증으로
+    else:
+        return "retry"  # 중복 발견 → 재시도
+
+def route_after_validation(state: State):
+    validation_success = state.get('validation_success', False)
+    retry_feedback = state.get('retry_feedback', '')
+    
+    print(f"[route]라우팅 체크: retry_feedback='{retry_feedback}', validation_success={validation_success}")
+    
+    if validation_success:
+        return "success"
+    else:
+        return "retry"
+
 # Build the graph
 builder = StateGraph(State)
 
 builder.add_node("orchestrator", orchestrator)
 builder.add_node("search_and_generate", search_and_generate)
+builder.add_node("os_duplication_checker", os_duplication_checker)  # 새로운 중복 검사 노드
 builder.add_node("validation_worker", validation_worker)
 builder.add_node("display_worker", display_worker)
 
+# 라우팅 설정
 builder.add_edge(START, "orchestrator")
 builder.add_conditional_edges("orchestrator", route_after_orchestrator, 
                              {"generate": "search_and_generate", "display": "display_worker"})
-builder.add_edge("search_and_generate", "validation_worker")
+builder.add_edge("search_and_generate", "os_duplication_checker")  # 생성 후 중복 검사
+builder.add_conditional_edges("os_duplication_checker", route_after_duplication_check,
+                             {"validation": "validation_worker", "retry": "search_and_generate"})  # 중복 검사 후 분기
 builder.add_conditional_edges("validation_worker", route_after_validation,
                              {"retry": "search_and_generate", "success": "orchestrator"})
 builder.add_edge("display_worker", END)

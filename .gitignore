@@ -48,6 +48,9 @@ Thumbs.db
 # AWS credentials
 .aws/
 
+# Configuration files (contains sensitive endpoints)
+config.py
+
 # Temporary files
 *.tmp
 *.temp

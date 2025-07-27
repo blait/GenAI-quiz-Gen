@@ -2,7 +2,12 @@ langgraph
 langchain
 langchain-aws
 langchain-community
+langchain-core
 boto3
+botocore
 ddgs
 opensearch-py
 sentence-transformers
+requests-aws4auth
+scikit-learn
+numpy

@@ -16,12 +16,15 @@ graph TD
     Start([시작]) --> Orch[🎯 ORCHESTRATOR<br/>주제 분석 & 5개 퀴즈 유형 생성]
     
     %% 퀴즈 유형 처리 블록 (1개 유형만 표시, 5개 반복)
-    subgraph QuizType ["퀴즈 유형 처리 5개 순차 반복)"]
+    subgraph QuizType ["📝 퀴즈 유형 처리 (총 5개 유형 순차 반복)"]
         SG[🔍 SEARCH_AND_GENERATOR<br/>1. DuckDuckGo 검색<br/>2. 데이터 파싱<br/>3. 퀴즈 생성]
+        Dup{🔄 DUPLICATION_CHECKER<br/>임계값 0.85<br/>OpenSearch 유사도}
         Val{✅ VALIDATOR<br/>다중 키워드 검색으로<br/>사실 검증}
         Retry{재시도 횟수<br/>< 3회?}
         
-        SG --> Val
+        SG --> Dup
+        Dup --> |중복 감지<br/>피드백 제공| Retry
+        Dup --> |중복 아님<br/>< 0.85| Val
         Val --> |INVALID<br/>피드백 제공| Retry
         Retry --> |Yes| SG
         Val --> |VALID<br/>검증 성공| Return[ORCHESTRATOR로 복귀]
@@ -31,13 +34,14 @@ graph TD
     %% 메인 플로우 연결
     Orch --> |각 퀴즈 유형 시작| QuizType
     Return --> |다음 유형 또는 완료| Orch
-    Orch --> |5개 유형 모두 완료시| Display[📊 DISPLAY_WORKER<br/>CSV 파일 생성 및 저장]
+    Orch --> |5개 유형 모두 완료시| Display[📊 DISPLAY_WORKER<br/>1. CSV 파일 생성<br/>2. OpenSearch 저장<br/>3. 벡터 임베딩 저장]
     
     Display --> End([종료])
     
     %% 스타일링
     classDef orchestrator fill:#667eea,stroke:#333,stroke-width:3px,color:#fff
     classDef search fill:#4299e1,stroke:#333,stroke-width:2px,color:#fff
+    classDef duplication fill:#ff6b6b,stroke:#333,stroke-width:2px,color:#fff
     classDef validator fill:#48bb78,stroke:#333,stroke-width:2px,color:#fff
     classDef display fill:#ed8936,stroke:#333,stroke-width:2px,color:#fff
     classDef retry fill:#fbd38d,stroke:#333,stroke-width:2px,color:#744210
@@ -46,6 +50,7 @@ graph TD
     
     class Orch orchestrator
     class SG search
+    class Dup duplication
     class Val validator
     class Display display
     class Retry retry
@@ -195,7 +200,16 @@ myenv\Scripts\activate     # Windows
 pip install -r requirement.txt
 ```
 
-### 4. AWS 자격 증명 설정
+### 4. 설정 파일 생성
+```bash
+# config.example.py를 복사하여 config.py 생성
+cp config.example.py config.py
+
+# config.py 파일을 열어서 본인의 OpenSearch 엔드포인트로 수정
+# OPENSEARCH_ENDPOINT = "your-collection-id.us-east-1.aoss.amazonaws.com"
+```
+
+### 5. AWS 자격 증명 설정
 다음 중 하나의 방법으로 AWS 자격 증명을 설정하세요:
 
 #### 방법 1: AWS CLI 설정
@@ -218,7 +232,7 @@ AWS_SECRET_ACCESS_KEY=your_secret_key
 AWS_DEFAULT_REGION=us-east-1
 ```
 
-### 5. 실행
+### 6. 실행
 ```bash
 python quiz_generator.py
 ```
@@ -277,14 +291,6 @@ GenAI-quiz-Gen/
 
 
 
-
-## 향후 개선 계획
-
-- [ ] Amazon Knowledge Base 또는 OpenSearch를 활용한 중복 검사 시스템
-- [ ] 코사인 유사도 기반 정확한 중복 검출
-- [ ] 더 다양한 K-pop 주제 지원
-- [ ] 웹 인터페이스 추가
-- [ ] 퀴즈 난이도 조절 기능
 
 ## 문제 해결
 
@@ -663,6 +669,45 @@ QuizID,Category,QuestionID,Type,Question,Option,IsCorrect
 1,kpop_history,101,multiple_choice,BTS가 공식적으로 데뷔한 날짜는 언제인가요?,2014년 4월 29일,
 
 CSV 파일 저장 완료: bts_quiz_output.csv
+
+[dup]OpenSearch에서 중복 퀴즈 검사 중... (임계값: 0.85)
+/Users/hyeonsup/idolquiz/myenv/lib/python3.13/site-packages/torch/nn/modules/module.py:1762: FutureWarning: `encoder_attention_mask` is deprecated and will be removed in version 4.55.0 for `RobertaSdpaSelfAttention.forward`.
+  return forward_call(*args, **kwargs)
+[dup]🚨 중복 퀴즈 발견! 1개의 유사한 퀴즈 존재
+[dup]  유사 퀴즈 1: 2025년 7월 보이그룹 개인 브랜드평판 순위에서 1위를 차지한 BTS 멤버는 누구인가요? (유사도: 0.946)
+[dup]중복 검사 실패 - search_and_generate로 재시도 요청
+[route]중복 검사 후 라우팅: duplication_success=False, retry_feedback='🚨 중복 퀴즈 감지됨! (유사도 임계값: 0.85)
+
+📝 현재 생성된 퀴즈:
+질문: '20...'
+[search_gen]재시도 시작: BTS - song_matching
+[search_gen]피드백: 🚨 중복 퀴즈 감지됨! (유사도 임계값: 0.85)
+
+📝 현재 생성된 퀴즈:
+질문: '2025년 7월 한국기업평판연구소에서 발표한 아이돌 개인 평판 순위에서 1위를 기록한 BTS 멤버는 누구인가요?'
+정답: '지민'
+카테고리: K-pop
+
+🔍 기존 유사 퀴즈들:
+1. '2025년 7월 보이그룹 개인 브랜드평판 순위에서 1위를 차지한 BTS 멤버는 누구인가요?' (유사도: 0.946)
+
+💡 해결 방안: 
+- 다른 각도에서 접근하는 완전히 새로운 퀴즈를 만들어주세요
+- 더 구체적인 세부사항이나 다른 측면을 다루는 퀴즈로 변경해주세요
+- 시간대, 상황, 맥락 등을 다르게 하여 차별화된 퀴즈를 생성해주세요
+
+
+
+[dp]  ✅ 저장 성공 (ID: 1%3A0%3AyBG_TJgBnaYUyZVYjoio)
+[dp]OpenSearch 저장 2/5: 다음 중 BTS의 미니앨범 'MAP OF THE SOUL: PERSONA'의 타이틀곡은 무...
+[dp]  ✅ 저장 성공 (ID: 1%3A0%3A90C_TJgBV9R0pjxjk6CV)
+[dp]OpenSearch 저장 3/5: 2020년 발매된 BTS의 첫 영어 싱글로, 빌보드 핫100 차트에서 1위를 차지한 곡은?...
+[dp]  ✅ 저장 성공 (ID: 1%3A0%3AyRG_TJgBnaYUyZVYmIjg)
+[dp]OpenSearch 저장 4/5: BTS의 'Life Goes On' 가사 중 빈칸에 알맞은 표현은? '저 미래로 달아나자 ...
+[dp]  ✅ 저장 성공 (ID: 1%3A0%3AyhG_TJgBnaYUyZVYnYiO)
+[dp]OpenSearch 저장 5/5: 2025년 방탄소년단 지민의 빌보드 '핫 100' 차트 기록으로 옳은 것은?...
+[dp]  ✅ 저장 성공 (ID: 1%3A0%3A-EC_TJgBV9R0pjxjoqA9)
+
 ```
 
 
