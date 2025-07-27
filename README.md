@@ -667,11 +667,6 @@ CSV 파일 저장 완료: bts_quiz_output.csv
 
 
 
-
-## 라이선스
-
-MIT License
-
 ## 기여
 
 이슈 리포트나 풀 리퀘스트는 언제든 환영합니다!
