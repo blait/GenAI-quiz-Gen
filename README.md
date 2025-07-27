@@ -16,7 +16,7 @@ graph TD
     Start([시작]) --> Orch[🎯 ORCHESTRATOR<br/>주제 분석 & 5개 퀴즈 유형 생성]
     
     %% 퀴즈 유형 처리 블록 (1개 유형만 표시, 5개 반복)
-    subgraph QuizType ["📝 퀴즈 유형 처리 (총 5개 유형 순차 반복)"]
+    subgraph QuizType ["📝 퀴즈 유형 처리 <br/> (총 5개 유형 순차 반복)"]
         SG[🔍 SEARCH_AND_GENERATOR<br/>1. DuckDuckGo 검색<br/>2. 데이터 파싱<br/>3. 퀴즈 생성]
         Val{✅ VALIDATOR<br/>다중 키워드 검색으로<br/>사실 검증}
         Retry{재시도 횟수<br/>< 3회?}
