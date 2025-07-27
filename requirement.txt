@@ -1,0 +1,8 @@
+langgraph
+langchain
+langchain-aws
+langchain-community
+boto3
+ddgs
+opensearch-py
+sentence-transformers

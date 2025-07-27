@@ -1,0 +1,19 @@
+QuizID,Category,QuestionID,Type,Question,Option,IsCorrect
+1,K-pop,1,multiple_choice,방탄소년단(BTS) 멤버 중 가장 먼저 전역한 멤버는 누구인가요?,진,Y
+1,K-pop,1,multiple_choice,방탄소년단(BTS) 멤버 중 가장 먼저 전역한 멤버는 누구인가요?,슈가,
+1,K-pop,1,multiple_choice,방탄소년단(BTS) 멤버 중 가장 먼저 전역한 멤버는 누구인가요?,제이홉,
+1,K-pop,1,multiple_choice,방탄소년단(BTS) 멤버 중 가장 먼저 전역한 멤버는 누구인가요?,정국,
+1,K-pop,101,song_matching,BTS 정국의 솔로 곡 중 해외 팬들이 마이클 잭슨과 비교하며 극찬했던 타이틀 곡은 무엇인가요?,Standing Next to You,Y
+1,K-pop,101,song_matching,BTS 정국의 솔로 곡 중 해외 팬들이 마이클 잭슨과 비교하며 극찬했던 타이틀 곡은 무엇인가요?,Seven,
+1,K-pop,101,song_matching,BTS 정국의 솔로 곡 중 해외 팬들이 마이클 잭슨과 비교하며 극찬했던 타이틀 곡은 무엇인가요?,Still With You,
+1,K-pop,101,song_matching,BTS 정국의 솔로 곡 중 해외 팬들이 마이클 잭슨과 비교하며 극찬했던 타이틀 곡은 무엇인가요?,Euphoria,
+1,K-pop Lyrics,101,lyrics_blank,"Fill in the blank for BTS's 'Dynamite' lyrics: ""Cause I-I-I'm in the stars tonight, So watch me _____ (bring the fire and set the night alight)""",bring the fire,Y
+1,K-pop Lyrics,101,lyrics_blank,"Fill in the blank for BTS's 'Dynamite' lyrics: ""Cause I-I-I'm in the stars tonight, So watch me _____ (bring the fire and set the night alight)""",shine bright,
+1,K-pop Lyrics,101,lyrics_blank,"Fill in the blank for BTS's 'Dynamite' lyrics: ""Cause I-I-I'm in the stars tonight, So watch me _____ (bring the fire and set the night alight)""",dance tonight,
+1,K-pop Lyrics,101,lyrics_blank,"Fill in the blank for BTS's 'Dynamite' lyrics: ""Cause I-I-I'm in the stars tonight, So watch me _____ (bring the fire and set the night alight)""",light it up,
+1,K-pop Concert,101,true_false,"2025년 7월 25일 기준, BTS 진(Jin)의 'RunSeokjin Ep. Tour' 공연이 미국 댈러스에서 열릴 예정이다.",True,Y
+1,K-pop Concert,101,true_false,"2025년 7월 25일 기준, BTS 진(Jin)의 'RunSeokjin Ep. Tour' 공연이 미국 댈러스에서 열릴 예정이다.",False,
+1,kpop_history,101,multiple_choice,BTS가 공식적으로 데뷔한 날짜는 언제인가요?,2013년 6월 13일,Y
+1,kpop_history,101,multiple_choice,BTS가 공식적으로 데뷔한 날짜는 언제인가요?,2012년 7월 12일,
+1,kpop_history,101,multiple_choice,BTS가 공식적으로 데뷔한 날짜는 언제인가요?,2013년 7월 9일,
+1,kpop_history,101,multiple_choice,BTS가 공식적으로 데뷔한 날짜는 언제인가요?,2014년 4월 29일,
