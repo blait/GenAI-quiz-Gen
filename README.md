@@ -72,9 +72,9 @@ graph TD
 ## 📋 각 노드의 역할
 
 ### 1. orchestrator (오케스트레이터)
-python
+```python
 def orchestrator(state: State):
-
+```
 역할: 전체 퀴즈 생성 프로세스를 관리하는 중앙 제어기
 
 주요 기능:
@@ -84,9 +84,9 @@ def orchestrator(state: State):
 • 현재 처리할 퀴즈 인덱스 관리 및 다음 퀴즈로 진행
 
 ### 2. search_and_generate (검색+생성 워커)
-python
+```python
 def search_and_generate(state: State):
-
+```
 역할: 검색을 통해 정보를 수집하고 퀴즈를 생성
 
 2단계 프로세스:
@@ -101,9 +101,9 @@ def search_and_generate(state: State):
    • 재시도 시 이전 피드백을 반영하여 개선된 퀴즈 생성
 
 ### 3. validation_worker (검증 워커)
-python
+```python
 def validation_worker(state: State):
-
+```
 역할: 생성된 퀴즈의 정확성을 다각도로 검증
 
 4단계 검증 프로세스:
@@ -113,30 +113,30 @@ def validation_worker(state: State):
 4. LLM 검증: 다양한 소스의 정보를 교차 검증하여 VALID/INVALID 판정
 
 ### 4. display_worker (표시 워커)
-python
+```python
 def display_worker(state: State):
-
+```
 역할: 완성된 퀴즈들을 CSV 형식으로 변환 및 파일 저장
 
 ## 🔀 라우팅 로직
 
 ### **route_after_validation**
-python
+```python
 def route_after_validation(state: State):
     if validation_success:
         return "success"  # → orchestrator (다음 퀴즈타입)
     elif retry_feedback:
         return "retry"    # → search_and_generate (재시도)
-
+```
 
 ### **route_after_orchestrator**
-python
+```python
 def route_after_orchestrator(state: State):
     if all_completed:
         return "display"   # → display_worker (CSV 생성)
     else:
         return "generate"  # → search_and_generate (퀴즈 생성)
-
+```
 
 ## 🔄 재시도 메커니즘
 
@@ -146,7 +146,7 @@ def route_after_orchestrator(state: State):
 
 ## 📊 State 관리
 
-python
+```python
 class State(TypedDict):
     topic: str                          # 사용자 입력 주제
     all_subtasks: List[QuizSubTask]     # 전체 퀴즈 작업 목록
@@ -161,7 +161,7 @@ class State(TypedDict):
     retry_feedback: str                 # 재시도용 피드백
     validation_success: bool            # 검증 성공 여부
     retry_count: int                    # 현재 재시도 횟수
-
+```
 
 ## ⚙️ 설정
 
