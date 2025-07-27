@@ -14,32 +14,51 @@ LangGraph와 Amazon Bedrock을 활용한 K-pop 퀴즈 생성기입니다.
 ```mermaid
 graph TD
     A[시작] --> B[orchestrator]
-    B --> C[search_and_generate]
-    C --> D{퀴즈 생성 성공?}
-    D -->|Yes| E[validation_worker]
-    D -->|No| F[재시도 또는 종료]
+    B --> C{모든 퀴즈 완료?}
+    C -->|No| D[search_and_generate]
+    C -->|Yes| END[END 신호]
     
-    E --> G[LLM이 3-5개 검증 키워드 생성]
-    G --> H[각 키워드로 DuckDuckGo 검색]
-    H --> I[검색 결과 교차 검증]
-    I --> J{검증 통과?}
+    D --> D1[주제 기반 DuckDuckGo 검색]
+    D1 --> D2[검색 결과 분석]
+    D2 --> D3[LLM으로 퀴즈 생성]
+    D3 --> E{퀴즈 생성 성공?}
     
-    J -->|Yes| K[display_worker]
-    J -->|No| L{재시도 횟수 < 3?}
-    L -->|Yes| M[피드백 생성 후 재시도]
-    L -->|No| N[검증 실패]
+    E -->|Yes| F[validation_worker]
+    E -->|No| G[재시도 또는 실패]
+    G --> B
     
-    M --> C
-    K --> O[최종 퀴즈 출력]
-    F --> P[종료]
-    N --> P
-    O --> P
+    F --> F1[LLM이 3-5개 검증 키워드 생성]
+    F1 --> F2[각 키워드로 DuckDuckGo 검색]
+    F2 --> F3[검색 결과 교차 검증]
+    F3 --> H{검증 통과?}
+    
+    H -->|Yes| I[display_worker]
+    H -->|No| J{재시도 횟수 < 3?}
+    J -->|Yes| K[피드백 생성]
+    J -->|No| L[검증 실패]
+    
+    K --> D
+    I --> I1[퀴즈 포맷팅 및 저장]
+    I1 --> B
+    L --> B
+    
+    END --> M[최종 결과 출력 및 종료]
     
     style A fill:#e1f5fe
-    style O fill:#c8e6c9
-    style P fill:#ffcdd2
-    style E fill:#fff3e0
-    style C fill:#f3e5f5
+    style B fill:#fff9c4
+    style D fill:#f3e5f5
+    style F fill:#fff3e0
+    style I fill:#e8f5e8
+    style END fill:#ffcdd2
+    style M fill:#c8e6c9
+    
+    style D1 fill:#e3f2fd
+    style D2 fill:#e3f2fd
+    style D3 fill:#e3f2fd
+    style F1 fill:#fce4ec
+    style F2 fill:#fce4ec
+    style F3 fill:#fce4ec
+    style I1 fill:#e8f5e8
 ```
 
 ## 시스템 구조
